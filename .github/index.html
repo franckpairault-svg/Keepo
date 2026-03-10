@@ -1315,20 +1315,19 @@ function confirmClear(){
 // ═══════════════════════════════════════
 // SHEETS
 // ═══════════════════════════════════════
+let _sheetCb=null;
 function openSheet(title,sub,btnTxt,btnCls,onConfirm){
+  _sheetCb=onConfirm;
   const act=document.getElementById('conf-act');
-  // Clone node to remove ALL previous event listeners
-  const fresh=act.cloneNode(true);
-  act.parentNode.replaceChild(fresh,act);
-  fresh.textContent=btnTxt;
-  fresh.className='btn '+btnCls;
-  fresh.onclick=function(){ onConfirm(); };
+  act.textContent=btnTxt;
+  act.className='btn '+btnCls;
+  act.onclick=function(e){ e.stopPropagation(); if(_sheetCb){_sheetCb(); _sheetCb=null;} };
   document.getElementById('conf-cancel').textContent=t('cancel');
   document.getElementById('conf-ttl').textContent=title;
   document.getElementById('conf-sub').textContent=sub;
   document.getElementById('conf-bg').classList.add('open');
 }
-function closeSheet(){document.getElementById('conf-bg').classList.remove('open')}
+function closeSheet(){document.getElementById('conf-bg').classList.remove('open');_sheetCb=null;}
 
 // ═══════════════════════════════════════
 // SETTINGS
@@ -1548,19 +1547,27 @@ function openDocWeb(raw){
 
 function renderAttachBlock(doc){
   const att=doc.attach;
-  if(!att||!att.data)return '<div style="background:rgba(255,0,0,.15);border-radius:12px;padding:12px;font-size:11px;color:#ff6b6b;margin-bottom:11px">Aucune pièce jointe stockée pour ce document</div>';
+  if(!att||!att.data)return '';
   const id=doc.id;
   let inner='';
   if(att.type==='image'){
-    inner=`<img src="${att.data}" style="width:100%;display:block;border-radius:0 0 14px 14px;max-height:280px;object-fit:contain;background:#111;cursor:pointer" onclick="viewFullImg('${id}')">`;
+    // Small thumbnail, tap to fullscreen
+    inner=`<div style="padding:0 14px 14px;display:flex;align-items:center;gap:12px">
+      <img src="${att.data}" onclick="viewFullImg('${id}')" style="width:56px;height:56px;object-fit:cover;border-radius:10px;cursor:pointer;border:1px solid rgba(255,255,255,.1)">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Photo</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${Math.round((att.data.length*0.75)/1024)}KB</div>
+        <div onclick="viewFullImg('${id}')" style="margin-top:5px;font-size:12px;font-weight:700;color:var(--blue);cursor:pointer">🔍 Agrandir</div>
+      </div>
+    </div>`;
   } else {
     const kb=Math.round((att.data.length*0.75)/1024);
-    inner=`<div style="padding:0 14px 14px;display:flex;align-items:center;gap:10px">
-      <div style="font-size:28px">📄</div>
+    inner=`<div style="padding:0 14px 14px;display:flex;align-items:center;gap:12px">
+      <div style="width:56px;height:56px;border-radius:10px;background:rgba(75,123,245,.15);border:1px solid rgba(75,123,245,.3);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">📄</div>
       <div>
         <div style="font-size:13px;font-weight:700;color:var(--text)">${escH(att.name||'document.pdf')}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px">${kb}KB</div>
-        <a href="${att.data}" download="${escH(att.name||'document.pdf')}" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:var(--blue)">⬇️ Ouvrir</a>
+        <div onclick="openAttachFile('${id}')" style="margin-top:5px;font-size:12px;font-weight:700;color:var(--blue);cursor:pointer">↗️ Ouvrir</div>
       </div>
     </div>`;
   }
@@ -1571,6 +1578,17 @@ function renderAttachBlock(doc){
     </div>
     ${inner}
   </div>`;
+}
+
+function openAttachFile(docId){
+  const doc=loadDocs().find(d=>d.id===docId);
+  if(!doc||!doc.attach||!doc.attach.data)return;
+  // On iOS, window.open with base64 data URL works better than <a download>
+  const w=window.open();
+  if(w){
+    w.document.write('<html><body style="margin:0;background:#000"><img src="'+doc.attach.data+'" style="max-width:100%" onerror="this.style.display=\'none\'"><iframe src="'+doc.attach.data+'" style="width:100%;height:100vh;border:none"></iframe></body></html>');
+    w.document.close();
+  }
 }
 
 function viewFullImg(docId){
